@@ -4,15 +4,23 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\CCTransactionController;
 use App\Http\Controllers\ServiceFeeController;
+use App\Http\Controllers\BfkoController;
+use App\Http\Controllers\DashboardController;
 use App\Models\SheetAdditionalFee;
 
-Route::get('/', function () {
-    return Inertia::render('Dashboard');
-});
+Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-Route::get('/bfko', function () {
-    return Inertia::render('BFKOMonitoring');
-});
+// BFKO Routes
+Route::get('/bfko', [BfkoController::class, 'index'])->name('bfko.index');
+Route::post('/bfko/import', [BfkoController::class, 'import'])->name('bfko.import');
+Route::get('/bfko/employee/{nip}', [BfkoController::class, 'employeeDetail'])->name('bfko.employee.detail');
+Route::post('/bfko/payment/store', [BfkoController::class, 'storePayment'])->name('bfko.payment.store');
+Route::put('/bfko/payment/{id}', [BfkoController::class, 'updatePayment'])->name('bfko.payment.update');
+Route::delete('/bfko/payment/{id}', [BfkoController::class, 'deletePayment'])->name('bfko.payment.delete');
+Route::delete('/bfko/employee/{nip}', [BfkoController::class, 'deleteEmployee'])->name('bfko.employee.delete');
+Route::delete('/bfko/delete-all', [BfkoController::class, 'deleteAll'])->name('bfko.delete.all');
+Route::get('/bfko/export/pdf', [BfkoController::class, 'exportPdf'])->name('bfko.export.pdf');
+Route::get('/bfko/export/excel', [BfkoController::class, 'exportExcel'])->name('bfko.export.excel');
 
 Route::get('/service-fee', [ServiceFeeController::class, 'index'])->name('service-fee.index');
 Route::get('/service-fee/sheets', [ServiceFeeController::class, 'getAvailableSheets']);
@@ -161,7 +169,11 @@ Route::get('/cc-card', function () {
             // Year filter: "year:2025"
             $selectedYear = substr($selectedFilter, 5);
             $yearForComparison = $selectedYear;
-            $query->whereRaw("strftime('%Y', departure_date) = ?", [$selectedYear]);
+            // Match year for both formats: M/D/YYYY and YYYY-MM-DD
+            $query->where(function($q) use ($selectedYear) {
+                $q->whereRaw("SUBSTR(departure_date, -4) = ?", [$selectedYear]) // M/D/YYYY format
+                  ->orWhereRaw("SUBSTR(departure_date, 1, 4) = ?", [$selectedYear]); // YYYY-MM-DD format
+            });
         } else {
             // Sheet filter: specific sheet name (e.g., "Juli 2025")
             $selectedSheet = $selectedFilter;
@@ -248,16 +260,37 @@ Route::get('/cc-card', function () {
         ->toArray();
 
     // Daftar tahun yang tersedia (berdasarkan departure_date)
-    $availableYears = \App\Models\CCTransaction::selectRaw("strftime('%Y', departure_date) as year")
-        ->distinct()
-        ->orderByRaw("strftime('%Y', departure_date) DESC")
+    // Handle 2 formats: M/D/YYYY (e.g., 6/15/2025) and YYYY-MM-DD (e.g., 2026-02-13)
+    $availableYears = \App\Models\CCTransaction::selectRaw("
+        DISTINCT CASE 
+            WHEN departure_date LIKE '%/%' THEN SUBSTR(departure_date, -4)
+            WHEN departure_date LIKE '%-%' THEN SUBSTR(departure_date, 1, 4)
+            ELSE NULL
+        END as year
+    ")
+        ->orderByRaw("
+            CASE 
+                WHEN departure_date LIKE '%/%' THEN SUBSTR(departure_date, -4)
+                WHEN departure_date LIKE '%-%' THEN SUBSTR(departure_date, 1, 4)
+                ELSE NULL
+            END DESC
+        ")
         ->pluck('year')
+        ->filter(function($year) {
+            // Filter only valid 4-digit years starting with 20
+            return preg_match('/^20\d{2}$/', $year);
+        })
+        ->unique()
+        ->values()
         ->toArray();
     
     // Data perbandingan per sheet (pertimbangkan filter tahun dan CC card bila dipilih)
     $allTxQuery = \App\Models\CCTransaction::query();
     if ($yearForComparison !== 'all') {
-        $allTxQuery->whereRaw("strftime('%Y', departure_date) = ?", [$yearForComparison]);
+        $allTxQuery->where(function($q) use ($yearForComparison) {
+            $q->whereRaw("SUBSTR(departure_date, -4) = ?", [$yearForComparison]) // M/D/YYYY format
+              ->orWhereRaw("SUBSTR(departure_date, 1, 4) = ?", [$yearForComparison]); // YYYY-MM-DD format
+        });
     }
     // Apply CC card filter to sheet comparison
     if ($selectedCard !== 'all') {
@@ -424,7 +457,10 @@ Route::get('/cc-card', function () {
         // All sheets - return multiple bars (satu per sheet)
         $allTxForChart = \App\Models\CCTransaction::query();
         if ($selectedYear !== 'all') {
-            $allTxForChart->whereRaw("strftime('%Y', departure_date) = ?", [$selectedYear]);
+            $allTxForChart->where(function($q) use ($selectedYear) {
+                $q->whereRaw("SUBSTR(departure_date, -4) = ?", [$selectedYear]) // M/D/YYYY format
+                  ->orWhereRaw("SUBSTR(departure_date, 1, 4) = ?", [$selectedYear]); // YYYY-MM-DD format
+            });
         }
         // Apply CC card filter to chart
         if ($selectedCard !== 'all') {
@@ -653,9 +689,9 @@ Route::get('/cc-card', function () {
         ->toArray();
     
     return Inertia::render('CCCardMonitoring', [
-        'totalPayment' => 'Rp ' . number_format($totalPayment, 0, ',', '.') . '',
-        'totalAdminInterest' => 'Rp ' . number_format($totalAdminInterest, 0, ',', '.') . '',
-        'totalRefund' => 'Rp ' . number_format($totalRefund, 0, ',', '.') . '',
+        'totalPayment' => $totalPayment,
+        'totalAdminInterest' => $totalAdminInterest,
+        'totalRefund' => $totalRefund,
         'sheetComparison' => $sheetComparison,
         'monthlyChartData' => $monthlyChartData,
         'destinations' => $topDestinations,

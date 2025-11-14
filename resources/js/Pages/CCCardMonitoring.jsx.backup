@@ -5,40 +5,6 @@ import { router } from '@inertiajs/react';
 import NewTransactionModal from '../Components/NewTransactionModal';
 import axios from 'axios';
 
-// Helper function to format summary display (auto unit selection)
-const formatSummaryDisplay = (value) => {
-    if (value >= 1000000000) {
-        return {
-            value: (value / 1000000000).toFixed(1),
-            unit: 'M' // Miliar
-        };
-    } else if (value >= 1000000) {
-        return {
-            value: (value / 1000000).toFixed(1),
-            unit: 'Jt' // Juta
-        };
-    } else if (value >= 1000) {
-        return {
-            value: (value / 1000).toFixed(1),
-            unit: 'Rb' // Ribu
-        };
-    }
-    return {
-        value: value.toFixed(0),
-        unit: ''
-    };
-};
-
-// Helper function to format Rupiah
-const formatRupiah = (value) => {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(value);
-};
-
 // Custom Tooltip Component
 const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -66,9 +32,9 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function CCCardMonitoring({ 
-    totalPayment = 0,
-    totalAdminInterest = 0,
-    totalRefund = 0,
+    totalPayment = 'Rp 0M',
+    totalAdminInterest = 'Rp 0M',
+    totalRefund = 'Rp 0M',
     sheetComparison = [],
     monthlyChartData = null,
     destinations = [],
@@ -231,134 +197,107 @@ export default function CCCardMonitoring({
     };
     return (
         <MainLayout>
-            {/* Hero Header with Gradient */}
-            <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 text-white p-8 shadow-lg mb-8">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white/20 backdrop-blur-sm p-4 rounded-2xl">
-                                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-3 sm:p-6 lg:p-8 pb-20 sm:pb-24 bg-gray-100 min-h-screen">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-3 sm:mb-4 lg:mb-6">CC Card Monitoring</h1>
+
+                {/* Search and Filters */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
+                    <div className="flex-1 relative">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={handleSearchChange}
+                            placeholder="Search employee, booking ID..."
+                            className="w-full px-4 py-2 pl-10 bg-cyan-100 border-0 rounded-lg focus:ring-2 focus:ring-cyan-300 text-sm sm:text-base"
+                        />
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 absolute left-3 top-2.5 sm:top-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        {searchQuery && (
+                            <button
+                                onClick={handleClearSearch}
+                                className="absolute right-3 top-2.5 sm:top-3 text-gray-500 hover:text-gray-700"
+                                title="Clear search"
+                            >
+                                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                    
+                    {/* CC Card Filter Dropdown */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsCardDropdownOpen(!isCardDropdownOpen)}
+                            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-green-200 text-gray-800 rounded-lg hover:bg-green-300 transition flex items-center gap-2 justify-between text-sm sm:text-base"
+                        >
+                            <span className="flex items-center gap-2">
+                                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                                 </svg>
-                            </div>
-                            <div>
-                                <h1 className="text-4xl font-extrabold tracking-tight">CC Card Monitoring</h1>
-                                <p className="text-blue-100 mt-1 text-sm font-medium">Corporate Credit Card Transaction Management</p>
-                            </div>
-                        </div>
-                        
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="px-5 py-3 bg-white/20 backdrop-blur-md hover:bg-white/30 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl hover:scale-105"
-                        >
-                            <span className="text-2xl">➕</span>
-                            <span>New Transaction</span>
+                                <span>{selectedCard === 'all' ? 'All Cards' : selectedCard === '5657' ? 'CC 5657' : 'CC 9386'}</span>
+                            </span>
+                            <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCardDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="p-8 bg-gray-50 min-h-screen">
-                <div className="max-w-7xl mx-auto">
-                    {/* Enhanced Search & Filter Bar */}
-                    <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 border border-gray-100">
-                        <div className="flex flex-wrap gap-4 items-center">
-                            <div className="flex-1 min-w-[300px]">
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={handleSearchChange}
-                                        placeholder="🔍 Search employee, booking ID..."
-                                        className="w-full pl-12 pr-4 py-3 bg-cyan-50 border-2 border-cyan-200 rounded-xl focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100 transition-all"
-                                    />
-                                    {searchQuery && (
-                                        <button
-                                            onClick={handleClearSearch}
-                                            className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
-                                            title="Clear search"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    )}
+                        
+                        {isCardDropdownOpen && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 border border-gray-200">
+                                <div className="py-1">
+                                    <button
+                                        onClick={() => handleCardFilterChange('all')}
+                                        className={`w-full text-left px-4 py-2 hover:bg-green-50 transition ${selectedCard === 'all' ? 'bg-green-100 font-semibold' : ''}`}
+                                    >
+                                        💳 All Cards
+                                    </button>
+                                    <button
+                                        onClick={() => handleCardFilterChange('5657')}
+                                        className={`w-full text-left px-4 py-2 hover:bg-green-50 transition ${selectedCard === '5657' ? 'bg-green-100 font-semibold' : ''}`}
+                                    >
+                                        CC 5657
+                                    </button>
+                                    <button
+                                        onClick={() => handleCardFilterChange('9386')}
+                                        className={`w-full text-left px-4 py-2 hover:bg-green-50 transition ${selectedCard === '9386' ? 'bg-green-100 font-semibold' : ''}`}
+                                    >
+                                        CC 9386
+                                    </button>
                                 </div>
-                                    </div>
-                            
-                            {/* CC Card Filter Dropdown */}
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setIsCardDropdownOpen(!isCardDropdownOpen)}
-                                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all cursor-pointer focus:ring-4 focus:ring-green-200 flex items-center gap-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                    </svg>
-                                    <span>{selectedCard === 'all' ? 'All Cards' : selectedCard === '5657' ? 'CC 5657' : 'CC 9386'}</span>
-                                    <svg className={`w-4 h-4 transition-transform ${isCardDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                
-                                {isCardDropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-50 border-2 border-gray-100">
-                                        <div className="py-1">
-                                            <button
-                                                onClick={() => handleCardFilterChange('all')}
-                                                className={`w-full text-left px-4 py-2 hover:bg-green-50 transition rounded-lg ${selectedCard === 'all' ? 'bg-green-100 font-semibold' : ''}`}
-                                            >
-                                                💳 All Cards
-                                            </button>
-                                            <button
-                                                onClick={() => handleCardFilterChange('5657')}
-                                                className={`w-full text-left px-4 py-2 hover:bg-green-50 transition rounded-lg ${selectedCard === '5657' ? 'bg-green-100 font-semibold' : ''}`}
-                                            >
-                                                CC 5657
-                                            </button>
-                                            <button
-                                                onClick={() => handleCardFilterChange('9386')}
-                                                className={`w-full text-left px-4 py-2 hover:bg-green-50 transition rounded-lg ${selectedCard === '9386' ? 'bg-green-100 font-semibold' : ''}`}
-                                            >
-                                                CC 9386
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
-                            
-                            {/* Year Filter Dropdown */}
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-                                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all cursor-pointer focus:ring-4 focus:ring-purple-200 flex items-center gap-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span>{selectedFilter.startsWith('year:') ? selectedFilter.replace('year:', 'Year: ') : 'All Years'}</span>
-                                    <svg className={`w-4 h-4 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                                
-                                {isYearDropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl z-50 border-2 border-gray-100 max-h-64 overflow-y-auto">
-                                        <div className="py-1">
-                                            <button
-                                                onClick={() => {
-                                                    handleFilterChange('all');
-                                                    setIsYearDropdownOpen(false);
-                                                }}
-                                                className={`w-full text-left px-4 py-2 hover:bg-purple-50 transition rounded-lg ${selectedFilter === 'all' ? 'bg-purple-100 font-semibold' : ''}`}
-                                            >
-                                                📅 All Years
-                                            </button>
+                        )}
+                    </div>
+                    
+                    {/* Year Filter Dropdown */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
+                            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-purple-200 text-gray-800 rounded-lg hover:bg-purple-300 transition flex items-center gap-2 justify-between text-sm sm:text-base"
+                        >
+                            <span className="flex items-center gap-2">
+                                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>{selectedFilter.startsWith('year:') ? selectedFilter.replace('year:', 'Year: ') : 'All Years'}</span>
+                            </span>
+                            <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isYearDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        
+                        {isYearDropdownOpen && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50 border border-gray-200 max-h-64 overflow-y-auto">
+                                <div className="py-1">
+                                    <button
+                                        onClick={() => {
+                                            handleFilterChange('all');
+                                            setIsYearDropdownOpen(false);
+                                        }}
+                                        className={`w-full text-left px-4 py-2 hover:bg-purple-50 transition ${selectedFilter === 'all' ? 'bg-purple-100 font-semibold' : ''}`}
+                                    >
+                                        📅 All Years
+                                    </button>
                                     {availableYears && availableYears.map(year => (
                                         <button
                                             key={year}
@@ -366,33 +305,35 @@ export default function CCCardMonitoring({
                                                 handleFilterChange(`year:${year}`);
                                                 setIsYearDropdownOpen(false);
                                             }}
-                                            className={`w-full text-left px-4 py-2 hover:bg-purple-50 transition rounded-lg ${selectedFilter === `year:${year}` ? 'bg-purple-100 font-semibold' : ''}`}
+                                            className={`w-full text-left px-4 py-2 hover:bg-purple-50 transition ${selectedFilter === `year:${year}` ? 'bg-purple-100 font-semibold' : ''}`}
                                         >
                                             Year: {year}
                                         </button>
                                     ))}
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
                             </div>
+                        )}
+                    </div>
 
-                            {/* Sheet Filter Dropdown */}
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
-                                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white border-0 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all cursor-pointer focus:ring-4 focus:ring-cyan-200 flex items-center gap-2"
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                    <span className="truncate">{getFilterLabel()}</span>
-                                    <svg className={`w-4 h-4 transition-transform ${isFilterDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
+                    {/* Sheet Filter Dropdown */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                            className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-cyan-200 text-gray-800 rounded-lg hover:bg-cyan-300 transition flex items-center gap-2 sm:min-w-[220px] justify-between text-sm sm:text-base"
+                        >
+                            <span className="flex items-center gap-2 truncate">
+                                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span className="truncate">{getFilterLabel()}</span>
+                            </span>
+                            <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
                         
                         {isFilterDropdownOpen && (
-                            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl z-50 border-2 border-gray-100 max-h-96 overflow-y-auto">
+                            <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg z-50 border border-gray-200 max-h-96 overflow-y-auto">
                                 <div className="py-1">
                                     {availableFilters && availableFilters.length > 0 ? availableFilters.map((filter, index) => {
                                         // Skip year filters (now in separate dropdown)
@@ -410,7 +351,7 @@ export default function CCCardMonitoring({
                                                 {filter.type === 'header' ? (
                                                     <button
                                                         onClick={() => toggleYearCollapse(filter.value.replace('header:', ''))}
-                                                        className="w-full px-4 py-2 text-xs font-bold text-gray-700 uppercase bg-blue-50 border-t border-b border-blue-200 hover:bg-blue-100 transition flex items-center justify-between rounded-lg"
+                                                        className="w-full px-4 py-2 text-xs font-bold text-gray-700 uppercase bg-blue-50 border-t border-b border-blue-200 hover:bg-blue-100 transition flex items-center justify-between"
                                                     >
                                                         <span>📄 {filter.label}</span>
                                                         <svg 
@@ -423,7 +364,7 @@ export default function CCCardMonitoring({
                                                         </svg>
                                                     </button>
                                                 ) : filter.type === 'sheet' && filter.value !== 'all' ? (
-                                                    <div className={`flex items-center justify-between px-4 py-2 hover:bg-cyan-50 transition text-sm group rounded-lg ${selectedFilter === filter.value ? 'bg-cyan-100 font-semibold' : ''}`}>
+                                                    <div className={`flex items-center justify-between px-4 py-2 hover:bg-cyan-50 transition text-sm group ${selectedFilter === filter.value ? 'bg-cyan-100 font-semibold' : ''}`}>
                                                         <button onClick={() => handleFilterChange(filter.value)} className="flex-1 text-left">
                                                             {filter.label}
                                                         </button>
@@ -432,7 +373,7 @@ export default function CCCardMonitoring({
                                                         </button>
                                                     </div>
                                                 ) : filter.type !== 'header' && filter.type !== 'year' ? (
-                                                    <button onClick={() => handleFilterChange(filter.value)} className={`w-full text-left px-4 py-2 hover:bg-cyan-50 transition text-sm rounded-lg ${selectedFilter === filter.value ? 'bg-cyan-100 font-semibold' : ''}`}>
+                                                    <button onClick={() => handleFilterChange(filter.value)} className={`w-full text-left px-4 py-2 hover:bg-cyan-50 transition text-sm ${selectedFilter === filter.value ? 'bg-cyan-100 font-semibold' : ''}`}>
                                                         {filter.type === 'all' && '📊 '}
                                                         {filter.label}
                                                     </button>
@@ -446,88 +387,32 @@ export default function CCCardMonitoring({
                                 </div>
                             </div>
                         )}
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Summary Cards with Modern Design */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        {/* Total Payment Card */}
-                        <div className="group relative overflow-hidden bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-600 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700"></div>
-                            <div className="relative p-6 text-white">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl group-hover:rotate-12 transition-transform duration-500">
-                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-medium text-blue-100 mb-1">Total Payment</div>
-                                        <div className="text-2xl font-black tracking-tight">
-                                            Rp {formatSummaryDisplay(totalPayment).value}{formatSummaryDisplay(totalPayment).unit}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 pt-3 border-t border-white/20">
-                                    <div className="text-xs text-blue-50">{formatRupiah(totalPayment)}</div>
-                                </div>
-                            </div>
-                        </div>
+                </div>
 
-                        {/* Total Biaya Adm & Bunga Card */}
-                        <div className="group relative overflow-hidden bg-gradient-to-br from-yellow-500 via-orange-500 to-red-500 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700"></div>
-                            <div className="relative p-6 text-white">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl group-hover:rotate-12 transition-transform duration-500">
-                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-medium text-yellow-100 mb-1">Biaya Adm & Bunga</div>
-                                        <div className="text-2xl font-black tracking-tight">
-                                            Rp {formatSummaryDisplay(totalAdminInterest).value}{formatSummaryDisplay(totalAdminInterest).unit}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 pt-3 border-t border-white/20">
-                                    <div className="text-xs text-yellow-50">{formatRupiah(totalAdminInterest)}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Total Refund Card */}
-                        <div className="group relative overflow-hidden bg-gradient-to-br from-pink-500 via-rose-600 to-red-600 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 group-hover:scale-150 transition-transform duration-700"></div>
-                            <div className="relative p-6 text-white">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl group-hover:rotate-12 transition-transform duration-500">
-                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                        </svg>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-xs font-medium text-pink-100 mb-1">Total Refund</div>
-                                        <div className="text-2xl font-black tracking-tight">
-                                            Rp {formatSummaryDisplay(totalRefund).value}{formatSummaryDisplay(totalRefund).unit}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 pt-3 border-t border-white/20">
-                                    <div className="text-xs text-pink-50">{formatRupiah(totalRefund)}</div>
-                                </div>
-                            </div>
-                        </div>
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
+                    <div className="bg-blue-200 rounded-lg p-4 sm:p-6 border-l-4 border-blue-400">
+                        <p className="text-gray-700 text-xs sm:text-sm mb-1 sm:mb-2">Total Payment</p>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{totalPayment}</p>
                     </div>
+                    <div className="bg-blue-200 rounded-lg p-4 sm:p-6 border-l-4 border-yellow-400">
+                        <p className="text-gray-700 text-xs sm:text-sm mb-1 sm:mb-2">Total Biaya Adm & Bunga</p>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{totalAdminInterest}</p>
+                    </div>
+                    <div className="bg-blue-200 rounded-lg p-4 sm:p-6 border-l-4 border-pink-400">
+                        <p className="text-gray-700 text-xs sm:text-sm mb-1 sm:mb-2">Total Refund</p>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{totalRefund}</p>
+                    </div>
+                </div>
 
                 {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     {/* Chart with Mode Toggle */}
-                    <div className="bg-white rounded-xl p-6 shadow-lg">
+                    <div className="bg-white rounded-lg p-4 sm:p-6 shadow">
                         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
-                            <h3 className="text-lg font-bold">
+                            <h3 className="text-base sm:text-lg font-bold">
                                 {chartMode === 'monthly' ? 'Monthly Overview' : 'Sheet Comparison'}
                             </h3>
                             
@@ -914,6 +799,19 @@ export default function CCCardMonitoring({
                         </div>
                     </div>
                 </div>
+
+                {/* New Transaction Button */}
+                <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-30">
+                    <button 
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-4 py-2.5 sm:px-6 sm:py-3 bg-cyan-400 hover:bg-cyan-500 text-white rounded-lg transition-all shadow-xl font-semibold text-sm sm:text-base flex items-center gap-2 active:scale-95"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span className="hidden sm:inline">New Transaction</span>
+                        <span className="sm:hidden">New</span>
+                    </button>
                 </div>
             </div>
             
